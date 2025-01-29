@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .nav-btn.active {
+            background-color: #3b82f6;
+            color: white;
+        }
+
+        .loading {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+        }
+
+        .neubrutalism {
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            box-shadow: 5px 5px 0px #999, -5px -5px 0px #fff;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen neubrutalism">
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+        <div class="bg-white p-4 rounded-lg">
+            <i class="bi bi-arrow-repeat loading text-3xl text-blue-600"></i>
+        </div>
+    </div>
+
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <h1 class="text-2xl font-bold text-gray-900">Bank Management System</h1>
+                <div class="text-sm text-gray-500" id="currentDateTime"></div>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <nav class="flex flex-wrap gap-2 mb-6">
+            <button onclick="showSection('bankEntry')" class="nav-btn active flex items-center px-4 py-2 rounded-md bg-white shadow-sm hover:bg-blue-50">
+                <i class="bi bi-bank me-2"></i>Bank Entry
+            </button>
+            <button onclick="showSection('vendorEntry')" class="nav-btn flex items-center px-4 py-2 rounded-md bg-white shadow-sm hover:bg-blue-50">
+                <i class="bi bi-people me-2"></i>Vendor Entry
+            </button>
+            <button onclick="showSection('payments')" class="nav-btn flex items-center px-4 py-2 rounded-md bg-white shadow-sm hover:bg-blue-50">
+                <i class="bi bi-credit-card me-2"></i>Payments
+            </button>
+            <button onclick="showSection('activeBank')" class="nav-btn flex items-center px-4 py-2 rounded-md bg-white shadow-sm hover:bg-blue-50">
+                <i class="bi bi-check-circle me-2"></i>Active Banks
+            </button>
+            <button onclick="showSection('inactiveBank')" class="nav-btn flex items-center px-4 py-2 rounded-md bg-white shadow-sm hover:bg-blue-50">
+                <i class="bi bi-x-circle me-2"></i>Inactive Banks
+            </button>
+        </nav>
+
+        <section id="bankEntry" class="section-content bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">Add New Bank</h2>
+                <div class="flex gap-2">
+                    <button onclick="exportToExcel('bankTable')" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                        <i class="bi bi-file-earmark-excel me-2"></i>Export Excel
+                    </button>
+                    <button onclick="exportToPDF('bankTable')" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                        <i class="bi bi-file-pdf me-2"></i>Export PDF
+                    </button>
+                </div>
+            </div>
+            <form id="bankForm" class="space-y-4" onsubmit="handleBankSubmit(event)">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                        <input type="text" id="bankName" required class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Branch Name</label>
+                        <input type="text" id="branchName" required class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
+                        <input type="text" id="accountNumber" required class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500" onblur="checkDuplicateAccount()">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">IFSC Code</label>
+                        <input type="text" id="ifscCode" required class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select id="bankStatus" class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500">
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Select Vendor</label>
+                        <select id="vendorSelect" class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500"></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <select id="bankCategory" class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500">
+                            <option value="rent">Rent</option>
+                            <option value="one_time">One Time</option>
+                            <option value="percentage">Percentage</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">Add Bank</button>
+            </form>
+            <div class="table-scroll mt-6">
+                <table id="bankTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account No</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IFSC</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bankTableBody" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="vendorEntry" class="section-content hidden bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">Add New Vendor</h2>
+                <div class="flex gap-2">
+                    <button onclick="exportToExcel('vendorTable')" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                        <i class="bi bi-file-earmark-excel me-2"></i>Export Excel
+                    </button>
+                    <button onclick="exportToPDF('vendorTable')" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                        <i class="bi bi-file-pdf me-2"></i>Export PDF
+                    </button>
+                </div>
+            </div>
+            <form id="vendorForm" class="space-y-4" onsubmit="handleVendorSubmit(event)">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" id="vendorName" placeholder="Vendor Name" required class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500">
+                    <input type="email" id="vendorEmail" placeholder="Email" required class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500">
+                    <input type="tel" id="vendorPhone" placeholder="Phone Number" required class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500">
+                    <input type="text" id="vendorAddress" placeholder="Address" required class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">Add Vendor</button>
+            </form>
+            <div class="table-scroll mt-6">
+                <table id="vendorTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Address</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vendorTableBody" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="payments" class="section-content hidden bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">Payments</h2>
+                <div class="flex gap-2">
+                    <button onclick="exportToExcel('paymentTable')" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                        <i class="bi bi-file-earmark-excel me-2"></i>Export Excel
+                    </button>
+                    <button onclick="exportToPDF('paymentTable')" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                        <i class="bi bi-file-pdf me-2"></i>Export PDF
+                    </button>
+                </div>
+            </div>
+            <form id="paymentForm" class="space-y-4" onsubmit="handlePaymentSubmit(event)">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Select Bank</label>
+                        <select id="paymentBank" required class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500"></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Select Vendor</label>
+                        <select id="paymentVendor" required class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500"></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                        <input type="number" id="paymentAmount" required class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="col-span-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <input type="text" id="paymentDescription" required class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">Add Payment</button>
+            </form>
+            <div class="table-scroll mt-6">
+                <table id="paymentTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="paymentTableBody" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="activeBank" class="section-content hidden bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">Active Banks</h2>
+                <div class="flex gap-2">
+                    <button onclick="exportToExcel('activeBankTable')" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                        <i class="bi bi-file-earmark-excel me-2"></i>Export Excel
+                    </button>
+                    <button onclick="exportToPDF('activeBankTable')" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                        <i class="bi bi-file-pdf me-2"></i>Export PDF
+                    </button>
+                </div>
+            </div>
+            <div class="table-scroll">
+                <table id="activeBankTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account No</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IFSC</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activeBankTableBody" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="inactiveBank" class="section-content hidden bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">Inactive Banks</h2>
+                <div class="flex gap-2">
+                    <button onclick="exportToExcel('inactiveBankTable')" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                        <i class="bi bi-file-earmark-excel me-2"></i>Export Excel
+                    </button>
+                    <button onclick="exportToPDF('inactiveBankTable')" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                        <i class="bi bi-file-pdf me-2"></i>Export PDF
+                    </button>
+                </div>
+            </div>
+            <div class="table-scroll">
+                <table id="inactiveBankTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account No</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IFSC</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date & Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inactiveBankTableBody" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const userId = localStorage.getItem('userId') || 'user_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('userId', userId);
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const currentDateTime = document.getElementById('currentDateTime');
+        const accountNumbers = new Set();
+
+        function updateDateTime() {
+            const now = new Date();
+            currentDateTime.textContent = now.toLocaleString();
+        }
+
+        setInterval(updateDateTime, 1000);
+        updateDateTime();
+
+        function showSection(sectionId) {
+            document.querySelectorAll('.section-content').forEach(section => section.classList.add('hidden'));
+            document.getElementById(sectionId).classList.remove('hidden');
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+        }
+
+        function showLoading() {
+            loadingOverlay.classList.remove('hidden');
+            loadingOverlay.classList.add('flex');
+        }
+
+        function hideLoading() {
+            loadingOverlay.classList.add('hidden');
+            loadingOverlay.classList.remove('flex');
+        }
+
+        function checkDuplicateAccount() {
+            const accountNumber = document.getElementById('accountNumber').value;
+            if (accountNumbers.has(accountNumber)) {
+                alert('This account number already exists.');
+                document.getElementById('accountNumber').value = '';
+            }
+        }
+
+        function exportToExcel(tableId) {
+            const wb = XLSX.utils.table_to_book(document.getElementById(tableId), {
+                sheet: "Sheet1"
+            });
+            XLSX.writeFile(wb, `${tableId}_${new Date().toISOString()}.xlsx`);
+        }
+
+        function exportToPDF(tableId) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.autoTable({ html: `#${tableId}` });
+            doc.save(`${tableId}_${new Date().toISOString()}.pdf`);
+        }
+
+        async function makeAPICall(data) {
+            showLoading();
+            try {
+                const response = await fetch(`https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/db`, {
+                    method: data.method,
+                    headers: {
+                        'Authorization': 'Bearer T876jfvcH8Vb5e53jtILOp665413',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data.body)
+                });
+                const result = await response.json();
+                hideLoading();
+                return result;
+            } catch (error) {
+                hideLoading();
+                console.error('API Error:', error);
+                alert('An error occurred. Please try again.');
+            }
+        }
+
+        async function initialize() {
+            await loadVendors();
+            await loadBanks();
+            await loadPayments();
+        }
+
+        async function loadVendors() {
+            const result = await makeAPICall({
+                method: 'POST',
+                body: {
+                    userId: userId,
+                    appSlug: 'bank-management',
+                    action: 'read',
+                    table: 'vendors'
+                }
+            });
+
+            const vendorSelect = document.getElementById('vendorSelect');
+            vendorSelect.innerHTML = '<option value="">Select Vendor</option>';
+            result.data.forEach(vendor => {
+                const option = document.createElement('option');
+                option.value = vendor.id;
+                option.textContent = vendor.data.name;
+                vendorSelect.appendChild(option);
+            });
+
+            const paymentVendorSelect = document.getElementById('paymentVendor');
+            paymentVendorSelect.innerHTML = '<option value="">Select Vendor</option>';
+            result.data.forEach(vendor => {
+                const option = document.createElement('option');
+                option.value = vendor.id;
+                option.textContent = vendor.data.name;
+                paymentVendorSelect.appendChild(option);
+            });
+        }
+
+        async function loadBanks() {
+            const result = await makeAPICall({
+                method: 'POST',
+                body: {
+                    userId: userId,
+                    appSlug: 'bank-management',
+                    action: 'read',
+                    table: 'banks'
+                }
+            });
+
+            const activeBanks = result.data.filter(bank => bank.data.status === 'active');
+            const inactiveBanks = result.data.filter(bank => bank.data.status === 'inactive');
+
+            document.getElementById('activeBankTableBody').innerHTML = activeBanks.map(bank => `
+                <tr>
+                    <td class="px-6 py-4">${bank.data.bankName}</td>
+                    <td class="px-6 py-4">${bank.data.branchName}</td>
+                    <td class="px-6 py-4">${bank.data.accountNumber}</td>
+                    <td class="px-6 py-4">${bank.data.ifscCode}</td>
+                    <td class="px-6 py-4">${bank.data.vendorId}</td>
+                    <td class="px-6 py-4">${bank.data.category}</td>
+                    <td class="px-6 py-4">${new Date(bank.data.timestamp).toLocaleString()}</td>
+                    <td class="px-6 py-4">
+                        <button onclick="updateBankStatus('${bank.id}', 'inactive')" class="text-red-600 hover:text-red-900">
+                            Deactivate
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+
+            document.getElementById('inactiveBankTableBody').innerHTML = inactiveBanks.map(bank => `
+                <tr>
+                    <td class="px-6 py-4">${bank.data.bankName}</td>
+                    <td class="px-6 py-4">${bank.data.branchName}</td>
+                    <td class="px-6 py-4">${bank.data.accountNumber}</td>
+                    <td class="px-6 py-4">${bank.data.ifscCode}</td>
+                    <td class="px-6 py-4">${bank.data.vendorId}</td>
+                    <td class="px-6 py-4">${bank.data.category}</td>
+                    <td class="px-6 py-4">${new Date(bank.data.timestamp).toLocaleString()}</td>
+                    <td class="px-6 py-4">
+                        <button onclick="updateBankStatus('${bank.id}', 'active')" class="text-green-600 hover:text-green-900">Activate</button>
+                        <button onclick="removeBank('${bank.id}')" class="text-red-600 hover:text-red-900">Remove</button>
+                    </td>
+                </tr>
+            `).join('');
+
+            updateBankTable();
+        }
+
+        async function loadPayments() {
+            const result = await makeAPICall({
+                method: 'POST',
+                body: {
+                    userId: userId,
+                    appSlug: 'bank-management',
+                    action: 'read',
+                    table: 'payments'
+                }
+            });
+
+            document.getElementById('paymentTableBody').innerHTML = result.data.map(payment => `
+                <tr>
+                    <td class="px-6 py-4">${payment.data.bankId}</td>
+                    <td class="px-6 py-4">${payment.data.vendorId}</td>
+                    <td class="px-6 py-4">₹${payment.data.amount}</td>
+                    <td class="px-6 py-4">${payment.data.description}</td>
+                    <td class="px-6 py-4">${new Date(payment.data.timestamp).toLocaleString()}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function handleBankSubmit(e) {
+            e.preventDefault();
+            const formData = {
+                bankName: document.getElementById('bankName').value,
+                branchName: document.getElementById('branchName').value,
+                accountNumber: document.getElementById('accountNumber').value,
+                ifscCode: document.getElementById('ifscCode').value,
+                status: document.getElementById('bankStatus').value,
+                vendorId: document.getElementById('vendorSelect').value,
+                category: document.getElementById('bankCategory').value,
+                timestamp: new Date().toISOString()
+            };
+
+            if (accountNumbers.has(formData.accountNumber)) {
+                alert('This account number already exists.');
+                return;
+            }
+
+            const result = await makeAPICall({
+                method: 'POST',
+                body: {
+                    userId: userId,
+                    appSlug: 'bank-management',
+                    action: 'create',
+                    table: 'banks',
+                    data: formData
+                }
+            });
+
+            if (result.error === null) {
+                accountNumbers.add(formData.accountNumber);
+                alert('Bank added successfully!');
+                e.target.reset();
+                loadBanks();
+                updateBankTable();
+            }
+        }
+
+        async function handleVendorSubmit(e) {
+            e.preventDefault();
+            const formData = {
+                name: document.getElementById('vendorName').value,
+                email: document.getElementById('vendorEmail').value,
+                phone: document.getElementById('vendorPhone').value,
+                address: document.getElementById('vendorAddress').value,
+                timestamp: new Date().toISOString()
+            };
+
+            const result = await makeAPICall({
+                method: 'POST',
+                body: {
+                    userId: userId,
+                    appSlug: 'bank-management',
+                    action: 'create',
+                    table: 'vendors',
+                    data: formData
+                }
+            });
+
+            if (result.error === null) {
+                alert('Vendor added successfully!');
+                e.target.reset();
+                loadVendors();
+                initialize();
+            }
+        }
+
+        async function handlePaymentSubmit(e) {
+            e.preventDefault();
+            const formData = {
+                bankId: document.getElementById('paymentBank').value,
+                vendorId: document.getElementById('paymentVendor').value,
+                amount: document.getElementById('paymentAmount').value,
+                description: document.getElementById('paymentDescription').value,
+                timestamp: new Date().toISOString()
+            };
+
+            const result = await makeAPICall({
+                method: 'POST',
+                body: {
+                    userId: userId,
+                    appSlug: 'bank-management',
+                    action: 'create',
+                    table: 'payments',
+                    data: formData
+                }
+            });
+
+            if (result.error === null) {
+                alert('Payment recorded successfully!');
+                e.target.reset();
+                loadPayments();
+            }
+        }
+
+        async function updateBankStatus(bankId, newStatus) {
+            const result = await makeAPICall({
+                method: 'POST',
+                body: {
+                    userId: userId,
+                    appSlug: 'bank-management',
+                    action: 'update',
+                    table: 'banks',
+                    id: bankId,
+                    data: { status: newStatus, timestamp: new Date().toISOString() }
+                }
+            });
+
+            if (result.error === null) {
+                alert(`Bank ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully!`);
+                loadBanks();
+            }
+        }
+
+        async function removeBank(bankId) {
+            const result = await makeAPICall({
+                method: 'POST',
+                body: {
+                    userId: userId,
+                    appSlug: 'bank-management',
+                    action: 'delete',
+                    table: 'banks',
+                    id: bankId
+                }
+            });
+
+            if (result.error === null) {
+                alert('Bank removed successfully!');
+                loadBanks();
+            }
+        }
+
+        async function updateBankTable() {
+            const result = await makeAPICall({
+                method: 'POST',
+                body: {
+                    userId: userId,
+                    appSlug: 'bank-management',
+                    action: 'read',
+                    table: 'banks'
+                }
+            });
+
+            const bankTableBody = document.getElementById('bankTableBody');
+            bankTableBody.innerHTML = '';
+
+            result.data.forEach(bank => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4">${bank.data.bankName}</td>
+                    <td class="px-6 py-4">${bank.data.branchName}</td>
+                    <td class="px-6 py-4">${bank.data.accountNumber}</td>
+                    <td class="px-6 py-4">${bank.data.ifscCode}</td>
+                    <td class="px-6 py-4">${bank.data.vendorId}</td>
+                    <td class="px-6 py-4">${bank.data.category}</td>
+                    <td class="px-6 py-4">${bank.data.status}</td>
+                    <td class="px-6 py-4">${new Date(bank.data.timestamp).toLocaleString()}</td>
+                    <td class="px-6 py-4"><button onclick="removeBank('${bank.id}')" class="text-red-600 hover:text-red-900">Remove</button></td>`;
+                bankTableBody.appendChild(row);
+            });
+        }
+
+        initialize();
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+
+</html>
